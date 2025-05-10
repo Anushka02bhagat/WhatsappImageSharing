@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quick Snap & Send</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0;
+            padding: 10px;
+            background: #f5f5f5;
+        }
+        #camera-view { 
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto 15px;
+            position: relative;
+            aspect-ratio: 4/3;
+            background: #000;
+        }
+        #video, #canvas, #result {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #logo {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            width: 20%;
+            max-width: 100px;
+            opacity: 0.8;
+            z-index: 10;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        input, button {
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background: #25D366;
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        #phone-input {
+            width: 100%;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="camera-view">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" class="hidden"></canvas>
+        <img id="result" class="hidden">
+        <img id="logo" src="logo.png" alt="Your Logo">
+    </div>
+
+    <div class="controls">
+        <input type="tel" id="phone-input" placeholder="Enter WhatsApp number with country code" required>
+        <button id="capture-btn">Take Photo</button>
+        <button id="send-btn" disabled>Send via WhatsApp</button>
+        <button id="retake-btn" class="hidden">Retake Photo</button>
+    </div>
+
+    <script>
+        // Elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const result = document.getElementById('result');
+        const captureBtn = document.getElementById('capture-btn');
+        const sendBtn = document.getElementById('send-btn');
+        const retakeBtn = document.getElementById('retake-btn');
+        const phoneInput = document.getElementById('phone-input');
+        const logo = document.getElementById('logo');
+        
+        let stream = null;
+        let capturedImage = null;
+
+        // Start camera immediately
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' },
+                    audio: false 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                alert("Camera access denied. Please enable camera permissions.");
+                console.error("Camera error:", err);
+            }
+        }
+
+        // Capture image
+        captureBtn.addEventListener('click', () => {
+            // Set canvas dimensions
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Draw video frame to canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Calculate logo position (bottom right)
+            const logoSize = Math.min(canvas.width, canvas.height) * 0.15;
+            const logoX = canvas.width - logoSize - 20;
+            const logoY = canvas.height - logoSize - 20;
+            
+            // Draw logo (using a hidden image element)
+            ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+            
+            // Get image data
+            capturedImage = canvas.toDataURL('image/jpeg');
+            
+            // Show result
+            result.src = capturedImage;
+            video.classList.add('hidden');
+            result.classList.remove('hidden');
+            
+            // Toggle buttons
+            captureBtn.classList.add('hidden');
+            sendBtn.disabled = false;
+            retakeBtn.classList.remove('hidden');
+        });
+
+        // Retake photo
+        retakeBtn.addEventListener('click', () => {
+            result.classList.add('hidden');
+            video.classList.remove('hidden');
+            captureBtn.classList.remove('hidden');
+            retakeBtn.classList.add('hidden');
+            sendBtn.disabled = true;
+        });
+
+        // Send via WhatsApp
+        sendBtn.addEventListener('click', () => {
+            if (!capturedImage || !phoneInput.value) {
+                alert("Please capture an image and enter a phone number");
+                return;
+            }
+            
+            // Clean phone number (remove all non-digits)
+            const phoneNumber = phoneInput.value.replace(/\D/g, '');
+            
+            // Create WhatsApp share link
+            const message = "Here's the photo I captured";
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+            
+            // For mobile devices, we'll create a temporary link click
+            const link = document.createElement('a');
+            link.href = whatsappUrl;
+            
+            // On Android, we can try to send the image directly
+            if (/Android/i.test(navigator.userAgent)) {
+                link.href = `intent://send/${phoneNumber}#Intent;scheme=smsto;package=com.whatsapp;action=android.intent.action.SEND;type=image/jpeg;S.android.intent.extra.STREAM=${encodeURIComponent(capturedImage)};end`;
+            }
+            
+            // Trigger the click
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // Start camera when page loads
+        window.addEventListener('DOMContentLoaded', startCamera);
+    </script>
+</body>
+</html>
