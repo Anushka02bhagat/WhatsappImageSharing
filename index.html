@@ -1,65 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Quick Snap & Send</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Sender</title>
     <style>
-        * { box-sizing: border-box; }
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 0;
-            padding: 10px;
-            background: #f5f5f5;
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
         }
-        #camera-view { 
-            width: 100%;
-            max-width: 500px;
-            margin: 0 auto 15px;
+        #camera-container {
             position: relative;
-            aspect-ratio: 4/3;
-            background: #000;
-        }
-        #video, #canvas, #result {
             width: 100%;
-            height: 100%;
-            object-fit: cover;
+            margin: 20px 0;
         }
-        #logo {
+        #video {
+            width: 100%;
+            border: 2px solid #ddd;
+            display: block;
+        }
+        #canvas {
+            display: none;
+        }
+        #result {
+            max-width: 100%;
+            display: none;
+        }
+        #logo-overlay {
             position: absolute;
-            bottom: 15px;
-            right: 15px;
-            width: 20%;
-            max-width: 100px;
+            bottom: 20px;
+            right: 20px;
+            width: 80px;
             opacity: 0.8;
             z-index: 10;
         }
         .controls {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-width: 500px;
-            margin: 0 auto;
+            margin: 20px 0;
         }
         input, button {
-            padding: 12px;
+            padding: 10px;
+            margin: 5px;
             font-size: 16px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
         }
         button {
-            background: #25D366;
+            background-color: #25D366;
             color: white;
             border: none;
-            font-weight: bold;
+            border-radius: 5px;
             cursor: pointer;
         }
         button:disabled {
-            background: #cccccc;
+            background-color: #cccccc;
             cursor: not-allowed;
-        }
-        #phone-input {
-            width: 100%;
         }
         .hidden {
             display: none;
@@ -67,44 +62,49 @@
     </style>
 </head>
 <body>
-    <div id="camera-view">
-        <video id="video" autoplay playsinline></video>
-        <canvas id="canvas" class="hidden"></canvas>
-        <img id="result" class="hidden">
-        <img id="logo" src="logo.png" alt="Your Logo">
-    </div>
-
+    <h1>Image Sender</h1>
+    
     <div class="controls">
-        <input type="tel" id="phone-input" placeholder="Enter WhatsApp number with country code" required>
-        <button id="capture-btn">Take Photo</button>
-        <button id="send-btn" disabled>Send via WhatsApp</button>
-        <button id="retake-btn" class="hidden">Retake Photo</button>
+        <input type="tel" id="phone" placeholder="WhatsApp number with country code" required>
+    </div>
+    
+    <div id="camera-container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <img id="result" alt="Captured Image">
+        <img id="logo-overlay" src="logo.png" alt="Logo">
+    </div>
+    
+    <div class="controls">
+        <button id="capture">Capture</button>
+        <button id="send" disabled>Send via WhatsApp</button>
+        <button id="retake" class="hidden">Retake</button>
     </div>
 
     <script>
-        // Elements
+        // DOM elements
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const result = document.getElementById('result');
-        const captureBtn = document.getElementById('capture-btn');
-        const sendBtn = document.getElementById('send-btn');
-        const retakeBtn = document.getElementById('retake-btn');
-        const phoneInput = document.getElementById('phone-input');
-        const logo = document.getElementById('logo');
+        const captureBtn = document.getElementById('capture');
+        const sendBtn = document.getElementById('send');
+        const retakeBtn = document.getElementById('retake');
+        const phoneInput = document.getElementById('phone');
+        const logo = document.getElementById('logo-overlay');
         
-        let stream = null;
-        let capturedImage = null;
+        let mediaStream = null;
+        let imageBlob = null;
 
-        // Start camera immediately
+        // Start camera
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: 'environment' },
                     audio: false 
                 });
-                video.srcObject = stream;
+                video.srcObject = mediaStream;
             } catch (err) {
-                alert("Camera access denied. Please enable camera permissions.");
+                alert("Could not access camera: " + err.message);
                 console.error("Camera error:", err);
             }
         }
@@ -119,32 +119,34 @@
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Calculate logo position (bottom right)
+            // Calculate logo position
             const logoSize = Math.min(canvas.width, canvas.height) * 0.15;
             const logoX = canvas.width - logoSize - 20;
             const logoY = canvas.height - logoSize - 20;
             
-            // Draw logo (using a hidden image element)
+            // Draw logo
             ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
             
-            // Get image data
-            capturedImage = canvas.toDataURL('image/jpeg');
-            
-            // Show result
-            result.src = capturedImage;
-            video.classList.add('hidden');
-            result.classList.remove('hidden');
-            
-            // Toggle buttons
-            captureBtn.classList.add('hidden');
-            sendBtn.disabled = false;
-            retakeBtn.classList.remove('hidden');
+            // Convert to blob
+            canvas.toBlob((blob) => {
+                imageBlob = blob;
+                result.src = URL.createObjectURL(blob);
+                
+                // Show result
+                video.style.display = 'none';
+                result.style.display = 'block';
+                
+                // Toggle buttons
+                captureBtn.classList.add('hidden');
+                sendBtn.disabled = false;
+                retakeBtn.classList.remove('hidden');
+            }, 'image/jpeg', 0.9);
         });
 
         // Retake photo
         retakeBtn.addEventListener('click', () => {
-            result.classList.add('hidden');
-            video.classList.remove('hidden');
+            result.style.display = 'none';
+            video.style.display = 'block';
             captureBtn.classList.remove('hidden');
             retakeBtn.classList.add('hidden');
             sendBtn.disabled = true;
@@ -152,35 +154,40 @@
 
         // Send via WhatsApp
         sendBtn.addEventListener('click', () => {
-            if (!capturedImage || !phoneInput.value) {
+            if (!imageBlob || !phoneInput.value) {
                 alert("Please capture an image and enter a phone number");
                 return;
             }
             
-            // Clean phone number (remove all non-digits)
+            // Clean phone number
             const phoneNumber = phoneInput.value.replace(/\D/g, '');
             
-            // Create WhatsApp share link
-            const message = "Here's the photo I captured";
-            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+            // Create form data
+            const formData = new FormData();
+            formData.append('image', imageBlob, 'captured.jpg');
             
-            // For mobile devices, we'll create a temporary link click
-            const link = document.createElement('a');
-            link.href = whatsappUrl;
+            // For demo purposes, we'll use a simple WhatsApp link
+            // In a real app, you'd upload to a server first
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=Here's%20the%20captured%20image`;
             
-            // On Android, we can try to send the image directly
-            if (/Android/i.test(navigator.userAgent)) {
-                link.href = `intent://send/${phoneNumber}#Intent;scheme=smsto;package=com.whatsapp;action=android.intent.action.SEND;type=image/jpeg;S.android.intent.extra.STREAM=${encodeURIComponent(capturedImage)};end`;
+            // For Android, we can try to share the image directly
+            if (navigator.share && /Android/i.test(navigator.userAgent)) {
+                const file = new File([imageBlob], 'captured.jpg', { type: 'image/jpeg' });
+                navigator.share({
+                    title: 'Captured Image',
+                    text: 'Here is the image I captured',
+                    files: [file]
+                }).catch(err => {
+                    console.log('Error sharing:', err);
+                    window.open(whatsappUrl, '_blank');
+                });
+            } else {
+                window.open(whatsappUrl, '_blank');
             }
-            
-            // Trigger the click
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
         });
 
-        // Start camera when page loads
-        window.addEventListener('DOMContentLoaded', startCamera);
+        // Initialize camera
+        startCamera();
     </script>
 </body>
 </html>
