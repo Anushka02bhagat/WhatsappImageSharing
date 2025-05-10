@@ -5,59 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Sender</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
-        }
-        #camera-container {
-            position: relative;
+        /* ... (keep previous styles) ... */
+        #phone {
             width: 100%;
-            margin: 20px 0;
-        }
-        #video {
-            width: 100%;
-            border: 2px solid #ddd;
-            display: block;
-        }
-        #canvas {
-            display: none;
-        }
-        #result {
-            max-width: 100%;
-            display: none;
-        }
-        #logo-overlay {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 80px;
-            opacity: 0.8;
-            z-index: 10;
-        }
-        .controls {
-            margin: 20px 0;
-        }
-        input, button {
-            padding: 10px;
-            margin: 5px;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #25D366;
+            border-radius: 5px;
             font-size: 16px;
         }
-        button {
-            background-color: #25D366;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        .hidden {
-            display: none;
+        .number-note {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -65,129 +25,72 @@
     <h1>Image Sender</h1>
     
     <div class="controls">
-        <input type="tel" id="phone" placeholder="WhatsApp number with country code" required>
+        <input type="tel" id="phone" 
+               placeholder="Example: 911234567890 (with country code)" 
+               pattern="[0-9]{10,15}" 
+               required>
+        <p class="number-note">Enter full number with country code (no + sign)</p>
     </div>
     
-    <div id="camera-container">
-        <video id="video" autoplay playsinline></video>
-        <canvas id="canvas"></canvas>
-        <img id="result" alt="Captured Image">
-        <img id="logo-overlay" src="logo.png" alt="Logo">
-    </div>
-    
-    <div class="controls">
-        <button id="capture">Capture</button>
-        <button id="send" disabled>Send via WhatsApp</button>
-        <button id="retake" class="hidden">Retake</button>
-    </div>
+    <!-- ... (rest of your existing HTML) ... -->
 
     <script>
-        // DOM elements
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const result = document.getElementById('result');
-        const captureBtn = document.getElementById('capture');
-        const sendBtn = document.getElementById('send');
-        const retakeBtn = document.getElementById('retake');
-        const phoneInput = document.getElementById('phone');
-        const logo = document.getElementById('logo-overlay');
-        
-        let mediaStream = null;
-        let imageBlob = null;
+        // ... (keep previous JavaScript) ...
 
-        // Start camera
-        async function startCamera() {
-            try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' },
-                    audio: false 
-                });
-                video.srcObject = mediaStream;
-            } catch (err) {
-                alert("Could not access camera: " + err.message);
-                console.error("Camera error:", err);
-            }
-        }
-
-        // Capture image
-        captureBtn.addEventListener('click', () => {
-            // Set canvas dimensions
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            // Draw video frame to canvas
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Calculate logo position
-            const logoSize = Math.min(canvas.width, canvas.height) * 0.15;
-            const logoX = canvas.width - logoSize - 20;
-            const logoY = canvas.height - logoSize - 20;
-            
-            // Draw logo
-            ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
-            
-            // Convert to blob
-            canvas.toBlob((blob) => {
-                imageBlob = blob;
-                result.src = URL.createObjectURL(blob);
-                
-                // Show result
-                video.style.display = 'none';
-                result.style.display = 'block';
-                
-                // Toggle buttons
-                captureBtn.classList.add('hidden');
-                sendBtn.disabled = false;
-                retakeBtn.classList.remove('hidden');
-            }, 'image/jpeg', 0.9);
-        });
-
-        // Retake photo
-        retakeBtn.addEventListener('click', () => {
-            result.style.display = 'none';
-            video.style.display = 'block';
-            captureBtn.classList.remove('hidden');
-            retakeBtn.classList.add('hidden');
-            sendBtn.disabled = true;
-        });
-
-        // Send via WhatsApp
+        // Modified send function
         sendBtn.addEventListener('click', () => {
             if (!imageBlob || !phoneInput.value) {
-                alert("Please capture an image and enter a phone number");
+                alert("Please capture an image and enter a valid phone number");
                 return;
             }
             
-            // Clean phone number
+            // Clean phone number (remove all non-digits)
             const phoneNumber = phoneInput.value.replace(/\D/g, '');
             
-            // Create form data
-            const formData = new FormData();
-            formData.append('image', imageBlob, 'captured.jpg');
+            // Validate number length (minimum 10 digits including country code)
+            if (phoneNumber.length < 10 || phoneNumber.length > 15) {
+                alert("Please enter a valid number with country code (10-15 digits)");
+                return;
+            }
+
+            // Create temporary file for sharing
+            const file = new File([imageBlob], 'image.jpg', { type: 'image/jpeg' });
+            const fileUrl = URL.createObjectURL(file);
             
-            // For demo purposes, we'll use a simple WhatsApp link
-            // In a real app, you'd upload to a server first
-            const whatsappUrl = `https://wa.me/${phoneNumber}?text=Here's%20the%20captured%20image`;
-            
-            // For Android, we can try to share the image directly
+            // Android devices can share directly
             if (navigator.share && /Android/i.test(navigator.userAgent)) {
-                const file = new File([imageBlob], 'captured.jpg', { type: 'image/jpeg' });
                 navigator.share({
-                    title: 'Captured Image',
-                    text: 'Here is the image I captured',
+                    title: 'Photo',
+                    text: 'Sent from Image Sender',
                     files: [file]
                 }).catch(err => {
-                    console.log('Error sharing:', err);
-                    window.open(whatsappUrl, '_blank');
+                    console.log('Sharing failed, falling back to WhatsApp:', err);
+                    openWhatsApp(phoneNumber, fileUrl);
                 });
-            } else {
-                window.open(whatsappUrl, '_blank');
+            } 
+            // iOS and desktop devices
+            else {
+                openWhatsApp(phoneNumber, fileUrl);
             }
         });
 
-        // Initialize camera
-        startCamera();
+        function openWhatsApp(phoneNumber, imageUrl) {
+            // Create a temporary link to force download (for better WhatsApp compatibility)
+            const tempLink = document.createElement('a');
+            tempLink.href = imageUrl;
+            tempLink.download = 'image_to_share.jpg';
+            document.body.appendChild(tempLink);
+            tempLink.click();
+            document.body.removeChild(tempLink);
+            
+            // Open WhatsApp with the number
+            window.open(`https://wa.me/${phoneNumber}?text=Here's%20an%20image`, '_blank');
+            
+            // Note: On some devices, you'll need to manually attach the downloaded image
+            alert("If image didn't attach automatically:\n1. Open WhatsApp\n2. Select the entered number\n3. Attach the downloaded image");
+        }
+
+        // ... (rest of your JavaScript) ...
     </script>
 </body>
 </html>
