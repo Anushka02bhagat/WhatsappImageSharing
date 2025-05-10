@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Image Sharing</title>
+    <title>WhatsApp Photo Sender</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -76,11 +76,16 @@
         .hidden {
             display: none;
         }
+        .instructions {
+            font-size: 14px;
+            color: #666;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 style="color:#075E54;">WhatsApp Image Sharing</h1>
+        <h1 style="color:#075E54;">WhatsApp Photo Sender</h1>
         
         <div id="camera-view">
             <video id="video" autoplay playsinline></video>
@@ -89,6 +94,7 @@
         </div>
         
         <input type="tel" id="phone" placeholder="Enter phone number (without country code)">
+        <p class="instructions">Example: 9876543210</p>
         
         <button id="capture" class="btn">Capture Photo</button>
         <button id="send" class="btn">Send via WhatsApp</button>
@@ -117,13 +123,14 @@
                 });
                 video.srcObject = mediaStream;
             } catch (err) {
-                alert("Could not access camera. Please enable permissions and reload.");
+                alert("Please enable camera permissions to use this feature");
                 console.error("Camera error:", err);
             }
         }
 
         // Capture image
         captureBtn.addEventListener('click', () => {
+            // Create canvas
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
@@ -160,7 +167,7 @@
         });
 
         // Send via WhatsApp
-        sendBtn.addEventListener('click', () => {
+        sendBtn.addEventListener('click', async () => {
             const phoneNumber = phoneInput.value.replace(/\D/g, '');
             
             if (!phoneNumber) {
@@ -173,20 +180,38 @@
                 return;
             }
 
-            // Create download link
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(capturedImageBlob);
-            link.download = 'whatsapp_image.jpg';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // For Android - use share intent
+            if (navigator.share && /Android/i.test(navigator.userAgent)) {
+                try {
+                    const file = new File([capturedImageBlob], 'whatsapp_photo.jpg', {
+                        type: 'image/jpeg'
+                    });
+                    await navigator.share({
+                        title: 'Photo',
+                        text: 'Check this photo',
+                        files: [file]
+                    });
+                    return;
+                } catch (err) {
+                    console.log('Share API failed:', err);
+                    // Fall through to regular method
+                }
+            }
 
-            // Open WhatsApp
+            // For iOS and desktop - download image first
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(capturedImageBlob);
+            downloadLink.download = 'whatsapp_photo.jpg';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+
+            // Open WhatsApp with the number
             window.open(`https://wa.me/${phoneNumber}`, '_blank');
             
             // iOS instructions
             if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                alert("After WhatsApp opens:\n1. Tap the '+' icon\n2. Select 'Document'\n3. Choose the downloaded image");
+                alert("After WhatsApp opens:\n1. Tap the '+' icon\n2. Select 'Document'\n3. Choose 'whatsapp_photo.jpg'\n4. Send to the number");
             }
         });
 
