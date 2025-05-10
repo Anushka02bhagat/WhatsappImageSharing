@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quick WhatsApp Image Sender</title>
+    <title>WhatsApp Image Sender</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -111,7 +111,7 @@
         const logo = document.getElementById('logo-overlay');
         
         let mediaStream = null;
-        let capturedImageUrl = null;
+        let capturedImageBlob = null;
 
         // Start camera
         async function startCamera() {
@@ -146,16 +146,18 @@
             // Draw logo
             ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
             
-            // Get image data
-            capturedImageUrl = canvas.toDataURL('image/jpeg');
-            result.src = capturedImageUrl;
-            
-            // Switch views
-            video.style.display = 'none';
-            result.style.display = 'block';
-            captureBtn.style.display = 'none';
-            sendBtn.style.display = 'block';
-            retakeBtn.style.display = 'block';
+            // Convert to blob
+            canvas.toBlob(blob => {
+                capturedImageBlob = blob;
+                result.src = URL.createObjectURL(blob);
+                
+                // Switch views
+                video.style.display = 'none';
+                result.style.display = 'block';
+                captureBtn.style.display = 'none';
+                sendBtn.style.display = 'block';
+                retakeBtn.style.display = 'block';
+            }, 'image/jpeg', 0.9);
         });
 
         // Retake photo
@@ -165,10 +167,14 @@
             captureBtn.style.display = 'block';
             sendBtn.style.display = 'none';
             retakeBtn.style.display = 'none';
+            if (capturedImageBlob) {
+                URL.revokeObjectURL(capturedImageBlob);
+                capturedImageBlob = null;
+            }
         });
 
         // Send via WhatsApp
-        sendBtn.addEventListener('click', () => {
+        sendBtn.addEventListener('click', async () => {
             const phoneNumber = phoneInput.value.replace(/\D/g, '');
             
             if (!phoneNumber) {
@@ -176,25 +182,46 @@
                 return;
             }
             
-            if (!capturedImageUrl) {
+            if (!capturedImageBlob) {
                 alert("Please capture an image first");
                 return;
             }
-            
-            // Create temporary link for download
-            const link = document.createElement('a');
-            link.href = capturedImageUrl;
-            link.download = 'image_to_share.jpg';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            // Open WhatsApp with the number (using default country code)
+
+            // Create a File object from the blob
+            const imageFile = new File([capturedImageBlob], 'image.jpg', { 
+                type: 'image/jpeg',
+                lastModified: Date.now()
+            });
+
+            // For Android - use share API
+            if (navigator.share && /Android/i.test(navigator.userAgent)) {
+                try {
+                    await navigator.share({
+                        title: 'Image to share',
+                        text: 'Check out this image',
+                        files: [imageFile]
+                    });
+                    return;
+                } catch (err) {
+                    console.log('Share API failed:', err);
+                    // Fall through to regular method
+                }
+            }
+
+            // For iOS and desktop - download image first
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(imageFile);
+            downloadLink.download = 'image_to_share.jpg';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+
+            // Open WhatsApp
             window.open(`https://wa.me/${phoneNumber}`, '_blank');
             
             // Show instructions for iOS users
             if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                alert("On iPhone:\n1. WhatsApp will open\n2. Tap the '+' icon\n3. Select 'Document'\n4. Choose the downloaded image\n5. Send to the number");
+                alert("Please follow these steps:\n1. WhatsApp will open\n2. Tap the '+' icon\n3. Select 'Document'\n4. Choose the downloaded image\n5. Send to the number");
             }
         });
 
