@@ -3,43 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Image Sender</title>
+    <title>WhatsApp Image Sharing</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-        }
-        
         body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
             background: #f5f5f5;
-            padding: 15px;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
         }
-        
         .container {
             max-width: 500px;
-            width: 100%;
             margin: 0 auto;
             background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            flex: 1;
-            display: flex;
-            flex-direction: column;
         }
-        
-        h1 {
-            color: #075E54;
-            text-align: center;
-            margin-bottom: 15px;
-            font-size: clamp(1.5rem, 4vw, 2rem);
-        }
-        
         #camera-view {
             width: 100%;
             position: relative;
@@ -48,16 +27,12 @@
             aspect-ratio: 4/3;
             border-radius: 8px;
             overflow: hidden;
-            flex-shrink: 0;
         }
-        
         #video, #result {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            display: block;
         }
-        
         #logo-overlay {
             position: absolute;
             bottom: 15px;
@@ -67,12 +42,6 @@
             opacity: 0.9;
             z-index: 10;
         }
-        
-        .controls {
-            margin-top: auto;
-            width: 100%;
-        }
-        
         #phone {
             width: 100%;
             padding: 12px;
@@ -81,7 +50,6 @@
             border-radius: 8px;
             font-size: 16px;
         }
-        
         .btn {
             padding: 12px;
             width: 100%;
@@ -91,47 +59,28 @@
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: opacity 0.3s;
         }
-        
-        .btn:active {
-            opacity: 0.8;
-        }
-        
         #capture {
             background: #25D366;
             color: white;
         }
-        
         #send {
             background: #128C7E;
             color: white;
             display: none;
         }
-        
         #retake {
             background: #f0f0f0;
             display: none;
         }
-        
         .hidden {
             display: none;
-        }
-        
-        @media (max-width: 400px) {
-            .container {
-                padding: 15px;
-            }
-            
-            #phone, .btn {
-                padding: 10px;
-            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>WhatsApp Image Sender</h1>
+        <h1 style="color:#075E54;">WhatsApp Image Sharing</h1>
         
         <div id="camera-view">
             <video id="video" autoplay playsinline></video>
@@ -139,12 +88,11 @@
             <img id="logo-overlay" src="logo.png" alt="Logo">
         </div>
         
-        <div class="controls">
-            <input type="tel" id="phone" placeholder="Enter phone number (without country code)">
-            <button id="capture" class="btn">Capture Photo</button>
-            <button id="send" class="btn">Send via WhatsApp</button>
-            <button id="retake" class="btn">Retake Photo</button>
-        </div>
+        <input type="tel" id="phone" placeholder="Enter phone number (without country code)">
+        
+        <button id="capture" class="btn">Capture Photo</button>
+        <button id="send" class="btn">Send via WhatsApp</button>
+        <button id="retake" class="btn">Retake Photo</button>
     </div>
 
     <script>
@@ -169,14 +117,13 @@
                 });
                 video.srcObject = mediaStream;
             } catch (err) {
-                alert("Please enable camera permissions to use this feature");
+                alert("Could not access camera. Please enable permissions and reload.");
                 console.error("Camera error:", err);
             }
         }
 
         // Capture image
         captureBtn.addEventListener('click', () => {
-            // Create canvas element
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
@@ -185,13 +132,9 @@
             // Draw video frame
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Calculate logo position (bottom right)
+            // Add logo (bottom right)
             const logoSize = Math.min(canvas.width, canvas.height) * 0.15;
-            const logoX = canvas.width - logoSize - 20;
-            const logoY = canvas.height - logoSize - 20;
-            
-            // Draw logo watermark
-            ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+            ctx.drawImage(logo, canvas.width - logoSize - 20, canvas.height - logoSize - 20, logoSize, logoSize);
             
             // Convert to blob
             canvas.toBlob(blob => {
@@ -214,16 +157,10 @@
             captureBtn.classList.remove('hidden');
             sendBtn.classList.add('hidden');
             retakeBtn.classList.add('hidden');
-            
-            // Clean up
-            if (capturedImageBlob) {
-                URL.revokeObjectURL(result.src);
-                capturedImageBlob = null;
-            }
         });
 
         // Send via WhatsApp
-        sendBtn.addEventListener('click', async () => {
+        sendBtn.addEventListener('click', () => {
             const phoneNumber = phoneInput.value.replace(/\D/g, '');
             
             if (!phoneNumber) {
@@ -236,45 +173,25 @@
                 return;
             }
 
-            // For Android devices - use share API
-            if (navigator.share && /Android/i.test(navigator.userAgent)) {
-                try {
-                    const file = new File([capturedImageBlob], 'image.jpg', {
-                        type: 'image/jpeg',
-                        lastModified: Date.now()
-                    });
-                    
-                    await navigator.share({
-                        title: 'Photo',
-                        text: 'Sent from Image Sender',
-                        files: [file]
-                    });
-                    return;
-                } catch (err) {
-                    console.log('Share API failed:', err);
-                    // Fall through to regular method
-                }
-            }
-            
-            // For iOS and desktop - download image first
-            const downloadLink = document.createElement('a');
-            downloadLink.href = URL.createObjectURL(capturedImageBlob);
-            downloadLink.download = 'image_to_share.jpg';
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
+            // Create download link
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(capturedImageBlob);
+            link.download = 'whatsapp_image.jpg';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
 
-            // Open WhatsApp with the number
+            // Open WhatsApp
             window.open(`https://wa.me/${phoneNumber}`, '_blank');
             
-            // Show instructions for iOS users
+            // iOS instructions
             if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                alert("Please follow these steps:\n1. WhatsApp will open\n2. Tap the '+' icon\n3. Select 'Document'\n4. Choose the downloaded image\n5. Send to the number");
+                alert("After WhatsApp opens:\n1. Tap the '+' icon\n2. Select 'Document'\n3. Choose the downloaded image");
             }
         });
 
-        // Initialize camera when page loads
-        window.addEventListener('DOMContentLoaded', startCamera);
+        // Initialize
+        startCamera();
     </script>
 </body>
 </html>
